@@ -23,7 +23,3 @@ Thumbs.db
 .env
 .env.*
 
-# QA / verification scripts (not part of the shipped codebase)
-verify.py
-
-
