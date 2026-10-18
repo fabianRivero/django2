@@ -1,0 +1,133 @@
+{% extends 'inventory/base.html' %}
+
+{% block title %}Panel · Inventario{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3 mb-0">Panel principal</h1>
+  <a href="{% url 'inventory:product_create' %}" class="btn btn-primary">
+    <i class="bi bi-plus-lg"></i> Nuevo producto
+  </a>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <p class="text-muted small mb-1">Productos</p>
+        <h2 class="display-6 mb-0">{{ total_products }}</h2>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <p class="text-muted small mb-1">Stock bajo / sin stock</p>
+        <h2 class="display-6 text-danger mb-0">{{ low_stock|length }}</h2>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card shadow-sm h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-graph-up"></i> Movimientos de stock</span>
+        <form method="get" class="d-flex align-items-center">
+          <label class="me-2 small text-muted">Últimos</label>
+          <select name="chart_days" class="form-select form-select-sm" onchange="this.form.submit()">
+            <option value="7" {% if chart_days == 7 %}selected{% endif %}>7 d</option>
+            <option value="15" {% if chart_days == 15 %}selected{% endif %}>15 d</option>
+            <option value="30" {% if chart_days == 30 %}selected{% endif %}>30 d</option>
+            <option value="60" {% if chart_days == 60 %}selected{% endif %}>60 d</option>
+            <option value="90" {% if chart_days == 90 %}selected{% endif %}>90 d</option>
+          </select>
+        </form>
+      </div>
+      <div class="card-body">
+        <canvas id="movementChart" height="120"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card shadow-sm h-100" id="alertas">
+      <div class="card-header"><i class="bi bi-exclamation-triangle"></i> Alertas de stock bajo</div>
+      <ul class="list-group list-group-flush">
+        {% for product in low_stock %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <a href="{% url 'inventory:product_detail' product.pk %}">{{ product.name }}</a>
+          <span class="badge bg-{% if product.is_out_of_stock %}danger{% else %}warning text-dark{% endif %}">
+            {{ product.quantity }} / mín {{ product.minimum_stock }}
+          </span>
+        </li>
+        {% empty %}
+        <li class="list-group-item text-muted">Todos los productos están por encima de su umbral 🎉</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm mt-4">
+  <div class="card-header"><i class="bi bi-clock-history"></i> Movimientos recientes</div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Fecha</th>
+          <th>Producto</th>
+          <th>Tipo</th>
+          <th class="text-end">Cantidad</th>
+          <th>Motivo</th>
+          <th>Por</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in recent_movements %}
+        <tr>
+          <td>{{ m.created_at|date:"Y-m-d H:i" }}</td>
+          <td><a href="{% url 'inventory:product_detail' m.product.pk %}">{{ m.product.name }}</a></td>
+          <td>
+            {% if m.movement_type == 'IN' %}<span class="badge bg-success">Entrada</span>
+            {% elif m.movement_type == 'OUT' %}<span class="badge bg-danger">Salida</span>
+            {% else %}<span class="badge bg-secondary">{{ m.get_movement_type_display }}</span>{% endif %}
+          </td>
+          <td class="text-end">{{ m.signed_quantity }}</td>
+          <td>{{ m.reason|default:"—" }}</td>
+          <td>{{ m.created_by|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" class="text-center text-muted py-3">Aún no hay movimientos registrados.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  const ctx = document.getElementById('movementChart').getContext('2d');
+  const labels = {{ chart_labels|safe }};
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Entradas', data: {{ chart_in|safe }}, backgroundColor: 'rgba(25,135,84,0.7)' },
+        { label: 'Salidas', data: {{ chart_out|safe }}, backgroundColor: 'rgba(220,53,69,0.7)' },
+      ],
+    },
+    options: {
+    responsive: true,
+    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+    plugins: { legend: { position: 'bottom' } },
+  },
+  });
+</script>
+{% endblock %}

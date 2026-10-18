@@ -1,0 +1,29 @@
+{% extends 'inventory/base.html' %}
+{% block title %}Categorías · Inventario{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3 mb-0">Categorías</h1>
+  <a href="{% url 'inventory:category_create' %}" class="btn btn-primary">
+    <i class="bi bi-plus-lg"></i> Nueva categoría
+  </a>
+</div>
+
+<div class="row g-3">
+  {% for c in categories %}
+    <div class="col-md-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title">
+            <a href="{% url 'inventory:category_detail' c.pk %}">{{ c.name }}</a>
+          </h5>
+          <p class="text-muted small mb-1">{{ c.description|default:"Sin descripción." }}</p>
+          <span class="badge bg-secondary">{{ c.product_count }} productos</span>
+        </div>
+      </div>
+    </div>
+  {% empty %}
+    <p class="text-muted">Aún no hay categorías.</p>
+  {% endfor %}
+</div>
+{% endblock %}

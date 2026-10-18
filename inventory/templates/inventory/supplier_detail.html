@@ -1,0 +1,58 @@
+{% extends 'inventory/base.html' %}
+{% block title %}{{ supplier.name }} · Inventario{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ supplier.name }}</h1>
+    <p class="text-muted mb-0">
+      {{ supplier.contact_name|default:"" }}{% if supplier.email %} · {{ supplier.email }}{% endif %}{% if supplier.phone %} · {{ supplier.phone }}{% endif %}
+    </p>
+    <p class="text-muted small mb-0">{{ supplier.address|default:"" }}</p>
+  </div>
+  <a href="{% url 'inventory:supplier_update' supplier.pk %}" class="btn btn-outline-secondary">
+    <i class="bi bi-pencil"></i> Editar
+  </a>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header"><i class="bi bi-box-seam"></i> Productos de este proveedor</div>
+      <ul class="list-group list-group-flush">
+        {% for p in products %}
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <a href="{% url 'inventory:product_detail' p.pk %}">{{ p.name }}</a>
+            <span class="text-muted small"><code>{{ p.sku }}</code> · {{ p.quantity }} unidades</span>
+          </li>
+        {% empty %}
+          <li class="list-group-item text-muted">Aún no hay productos de este proveedor.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header"><i class="bi bi-clock-history"></i> Movimientos recientes</div>
+      <ul class="list-group list-group-flush">
+        {% for m in movements %}
+          <li class="list-group-item d-flex justify-content-between align-content-between">
+            <span>
+              <a href="{% url 'inventory:product_detail' m.product.pk %}">{{ m.product.name }}</a>
+              <small class="text-muted">— {{ m.created_at|date:"Y-m-d" }}</small>
+            </span>
+            <span>
+              {% if m.movement_type == 'IN' %}<span class="badge bg-success">+{{ m.quantity }}</span>
+              {% elif m.movement_type == 'OUT' %}<span class="badge bg-danger">-{{ m.quantity }}</span>
+              {% else %}<span class="badge bg-secondary">{{ m.movement_type }}</span>{% endif %}
+            </span>
+          </li>
+        {% empty %}
+          <li class="list-group-item text-muted">No hay movimientos para este proveedor.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}

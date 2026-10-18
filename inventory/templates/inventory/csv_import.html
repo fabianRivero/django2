@@ -1,0 +1,107 @@
+{% extends 'inventory/base.html' %}
+{% block title %}Importar productos desde CSV · Inventario{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-3">Importar productos desde CSV</h1>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="mb-3">
+        <label class="form-label">{{ form.csv_file.label }}</label>
+        {{ form.csv_file }}
+        <div class="form-text">{{ form.csv_file.help_text }}</div>
+        {% if form.csv_file.errors %}
+        <div class="text-danger small">{{ form.csv_file.errors|join:", " }}</div>
+        {% endif %}
+      </div>
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-upload"></i> Subir archivo
+      </button>
+    </form>
+  </div>
+</div>
+
+{% if report %}
+<div class="card shadow-sm">
+  <div class="card-header">Resultado de la importación</div>
+  <div class="card-body">
+    <p class="mb-2">
+      <strong>Creados:</strong> {{ report.created }} ·
+      <strong>Actualizados:</strong> {{ report.updated }} ·
+      <strong>Omitidos:</strong> {{ report.skipped }}
+    </p>
+
+    {% if report.sku_changes %}
+    {# Mostramos los SKUs que el CSV traía pero fueron reemplazados. #}
+    <h6 class="mt-3">SKUs reemplazados (los del CSV ya existían)</h6>
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th>Fila</th>
+            <th>SKU del CSV</th>
+            <th>SKU asignado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row, requested, actual in report.sku_changes %}
+          <tr>
+            <td>{{ row }}</td>
+            <td><code class="text-decoration-line-through text-muted">{{ requested }}</code></td>
+            <td><code class="text-success fw-bold">{{ actual }}</code></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="small text-muted mb-0">
+        <i class="bi bi-info-circle"></i>
+        Estos SKUs del CSV ya existían en la base, así que les asignamos uno nuevo
+        automáticamente. Si querés que el producto use el SKU original, primero
+        cambiá o eliminá el producto existente.
+      </p>
+    </div>
+    {% endif %}
+
+    {% if report.errors %}
+    <h6 class="mt-3">Errores por fila</h6>
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th>Fila</th>
+            <th>Mensaje</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row, msg in report.errors %}
+          <tr>
+            <td>{{ row }}</td>
+            <td><code>{{ msg }}</code></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<div class="card shadow-sm mt-4">
+  <div class="card-header"><i class="bi bi-filetype-csv"></i> CSV de ejemplo</div>
+  <div class="card-body">
+    <p class="small text-muted">
+      La columna <code>sku</code> es opcional. Si la dejás vacía, se genera
+      automáticamente con el siguiente correlativo de la categoría. Si traés
+      un SKU que ya existe, se genera uno nuevo y se reporta al final.
+    </p>
+<pre class="mb-0"><code>sku,name,category,quantity,minimum_stock
+EL-9999,Webcam HD,Electronics,15,5
+,Engrapadora,Office Supplies,30,10
+,Lámpara,Furniture,0,2
+</code></pre>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,16 @@
+sku,name,category,supplier,quantity,minimum_stock,unit,unit_price,description,is_active
+LPT-2001,Laptop Dell XPS 13,Electronics,TechSource,12,5,unidad,1250.00,Portátil empresarial 13 pulgadas,true
+MON-3001,Monitor LG 27 4K,Electronics,TechSource,8,3,unidad,389.50,Monitor 27 pulgadas resolución 4K,true
+KBD-4001,Teclado mecánico Logitech,Electronics,TechSource,15,8,unidad,95.00,Teclado switches mecánicos,true
+MSE-5001,Mouse inalámbrico HP,Electronics,TechSource,30,10,unidad,22.50,Mouse óptico inalámbrico,true
+HUB-6001,Hub USB-C 7 puertos,Electronics,TechSource,4,5,unidad,45.00,Hub multipuerto USB-C,true
+CAB-7001,Cable HDMI 2m,Office Supplies,Office Depot,80,20,unidad,8.50,Cable HDMI versión 2.1,true
+PEN-8001,Lapicero azul BIC caja,Office Supplies,Office Depot,12,15,caja,6.00,Caja con 50 lapiceros,true
+PAP-9001,Resma papel A4 75g,Office Supplies,Office Depot,150,50,unidad,4.75,Papel A4 para impresión,true
+STD-1001,Escritorio ajustable,Office Supplies,Office Depot,3,2,unidad,425.00,Escritorio de pie altura regulable,true
+LAM-1101,Lámpara LED de mesa,Office Supplies,Office Depot,7,5,unidad,32.50,Lámpara LED con調節 de brillo,true
+SCL-1201,Silla ergonómica malla,Furniture,Comfort Living,5,3,unidad,289.00,Silla de oficina con soporte lumbar,true
+ARM-1301,Archivero metálico 4 gavetas,Furniture,Comfort Living,2,2,unidad,189.00,Archivero con cerradura,true
+LIB-1401,Estantería abierta 5 niveles,Furniture,Comfort Living,1,2,unidad,159.00,Estantería de madera,false
+MES-1501,Mesa de reuniones 8 personas,Furniture,Comfort Living,0,1,unidad,899.00,Mesa ovalada para sala de juntas,true
+PRS-1601,Pizarra blanca 120x80,Office Supplies,Office Depot,9,4,unidad,68.00,Pizarra magnética blanca,true

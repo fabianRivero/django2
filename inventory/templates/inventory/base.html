@@ -1,0 +1,93 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Sistema de Inventario{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'inventory/style.css' %}">
+</head>
+
+<body>
+
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+    <div class="container">
+      <a class="navbar-brand" href="{% url 'inventory:dashboard' %}">
+        <i class="bi bi-box-seam"></i> Inventario
+      </a>
+      <button class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#nav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="nav">
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item"><a class="nav-link" href="{% url 'inventory:product_list' %}">Productos</a></li>
+          <li class="nav-item"><a class="nav-link" href="{% url 'inventory:movement_list' %}">Movimientos</a></li>
+          <li class="nav-item"><a class="nav-link" href="{% url 'inventory:category_list' %}">Categorías</a></li>
+          <li class="nav-item"><a class="nav-link" href="{% url 'inventory:supplier_list' %}">Proveedores</a></li>
+          <li class="nav-item"><a class="nav-link" href="{% url 'inventory:csv_import' %}">Importar CSV</a></li>
+          <li class="nav-item">
+            <a class="nav-link position-relative {% if low_stock_count %}text-warning fw-bold{% endif %}"
+               href="{% url 'inventory:dashboard' %}#alertas"
+               title="{% if low_stock_count %}Hay {{ low_stock_count }} producto(s) con stock bajo{% else %}Sin alertas de stock{% endif %}">
+              <i class="bi bi-bell-fill"></i>
+              {% if low_stock_count %}
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill
+                             {% if low_stock_out %}bg-danger{% else %}bg-warning text-dark{% endif %}"
+                      aria-label="Alertas de stock">
+                  {% if low_stock_count > 99 %}99+{% else %}{{ low_stock_count }}{% endif %}
+                  <span class="visually-hidden">alertas de stock</span>
+                </span>
+              {% endif %}
+            </a>
+          </li>
+        </ul>
+        <ul class="navbar-nav">
+          {% if user.is_authenticated %}
+          <li class="nav-item"><span class="nav-link">Hola, {{ user.username }}</span></li>
+          {# Logout vía POST con CSRF: Django 4.1+ rechaza GET en
+             /admin/logout/ (405). Un form con {% csrf_token %} es la
+             forma estándar de "link" que dispara POST sin escribir
+             JavaScript. #}
+          <li class="nav-item">
+            <form method="post" action="{% url 'admin:logout' %}" class="d-inline">
+              {% csrf_token %}
+              <button type="submit" class="nav-link btn btn-link">
+                Cerrar sesión
+              </button>
+            </form>
+          </li>
+          {% else %}
+          <li class="nav-item"><a class="nav-link" href="{% url 'admin:login' %}">Iniciar sesión</a></li>
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container pb-5">
+    {% if messages %}
+    <div class="messages">
+      {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="text-center text-muted small py-4 border-top">
+    Sistema de Inventario · Construido con Django
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+
+</html>

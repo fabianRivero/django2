@@ -1,0 +1,52 @@
+/* Inventory — small visual tweaks on top of Bootstrap */
+body {
+  background: #f6f8fb;
+}
+.card {
+  border: none;
+}
+code {
+  color: #0d6efd;
+}
+.navbar-brand i {
+  margin-right: .35rem;
+}
+
+/* Low-stock bell badge in the navbar */
+.navbar .nav-link .bi-bell-fill {
+  font-size: 1.15rem;
+  vertical-align: middle;
+}
+.navbar .nav-link .badge {
+  font-size: 0.7rem;
+  padding: 0.25em 0.45em;
+  line-height: 1;
+  border: 1.5px solid var(--bs-dark, #212529);
+}
+.navbar .nav-link[href*="#alertas"] {
+  padding-right: 0.6rem;
+  padding-left: 0.6rem;
+}
+/* Subtle pulse to grab the user's eye when there are out-of-stock items. */
+@keyframes low-stock-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.6); }
+  50%      { box-shadow: 0 0 0 6px rgba(220, 53, 69, 0); }
+}
+.navbar .nav-link .badge.bg-danger {
+  animation: low-stock-pulse 1.8s infinite;
+}
+
+/* Logout form disguised as a navbar link. Same height/colors as
+   <a class="nav-link"> but it's a real <button type="submit"> so it
+   triggers POST (Django 4.1+ requires POST for /admin/logout/). */
+.navbar .nav-link.btn-link {
+  border: 0;
+  padding: .5rem 1rem;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, .55);
+}
+.navbar .nav-link.btn-link:hover,
+.navbar .nav-link.btn-link:focus {
+  color: rgba(255, 255, 255, .75);
+}
+
