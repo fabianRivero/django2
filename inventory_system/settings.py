@@ -35,6 +35,18 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+
+    'inventory.middleware.RequireLoginMiddleware',
+]
+
+# Rutas accesibles sin autenticación 
+PUBLIC_URLS = [
+    'login/',
+]
+
+PUBLIC_URL_PREFIXES = [
+    'admin/',
+    'static/',
 ]
 
 ROOT_URLCONF = 'inventory_system.urls'
@@ -102,6 +114,8 @@ if not DEBUG:
         SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 
 LOGOUT_REDIRECT_URL = '/'
+
+LOGIN_URL = 'inventory:login'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

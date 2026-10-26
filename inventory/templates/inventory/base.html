@@ -47,12 +47,8 @@
         <ul class="navbar-nav">
           {% if user.is_authenticated %}
           <li class="nav-item"><span class="nav-link">Hola, {{ user.username }}</span></li>
-          {# Logout vía POST con CSRF: Django 4.1+ rechaza GET en
-             /admin/logout/ (405). Un form con {% csrf_token %} es la
-             forma estándar de "link" que dispara POST sin escribir
-             JavaScript. #}
           <li class="nav-item">
-            <form method="post" action="{% url 'admin:logout' %}" class="d-inline">
+            <form method="post" action="{% url 'inventory:logout' %}" class="d-inline">
               {% csrf_token %}
               <button type="submit" class="nav-link btn btn-link">
                 Cerrar sesión
@@ -60,7 +56,7 @@
             </form>
           </li>
           {% else %}
-          <li class="nav-item"><a class="nav-link" href="{% url 'admin:login' %}">Iniciar sesión</a></li>
+          <li class="nav-item"><a class="nav-link" href="{% url 'inventory:login' %}">Iniciar sesión</a></li>
           {% endif %}
         </ul>
       </div>

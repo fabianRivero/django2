@@ -30,23 +30,15 @@ ALERT_COUNT_CACHE_TTL = 120  # segundos
 
 
 def low_stock_alerts(request):
-    """Expone el conteo de alertas de stock bajo y su desglose a todos los templates.
 
-    Retorna:
-        dict con:
-          - low_stock_count: total de productos en alerta (int)
-          - low_stock_out:   cantidad de esos que están agotados (int)
-          - low_stock_low:   cantidad de los que están en mínimo pero > 0 (int)
+    user = getattr(request, 'user', None)
+    if user is None or not user.is_authenticated:
+        return {
+            'low_stock_count': 0,
+            'low_stock_out': 0,
+            'low_stock_low': 0,
+        }
 
-    Estrategia de caché:
-        - Cache hit  → return inmediato (sin queries a la BD).
-        - Cache miss → 2 consultas count(), después cachear por
-          ``ALERT_COUNT_CACHE_TTL`` segundos.
-
-        Puntos de invalidación (ver services.py):
-        - ``record_movement`` (cada IN/OUT/ADJ)
-        - ``import_products_from_csv`` (fin de la importación bulk)
-    """
     cached = cache.get(ALERT_COUNT_CACHE_KEY)
     if cached is not None:
         return cached

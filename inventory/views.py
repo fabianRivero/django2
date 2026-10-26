@@ -1,8 +1,10 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import LoginView, LogoutView
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from .forms import (
@@ -21,6 +23,36 @@ from .services import (
     products_for_list,
     record_movement,
 )
+
+
+# ---------------------------------------------------------------------------
+# Autenticación
+# ---------------------------------------------------------------------------
+
+class AppLoginView(LoginView):
+    template_name = 'inventory/login.html'
+    redirect_authenticated_user = True
+
+    def get_success_url(self):
+
+        return self.get_redirect_url() or reverse('inventory:dashboard')
+
+    def form_invalid(self, form):
+        messages.error(
+            self.request,
+            'Credenciales inválidas. Revisá tu usuario y contraseña.',
+        )
+        return super().form_invalid(form)
+
+
+class AppLogoutView(LogoutView):
+    # Tras cerrar sesión redirigimos a /login/ y no al dashboard
+    
+    next_page = 'inventory:login'
+
+    def post(self, request, *args, **kwargs):
+        messages.success(request, 'Sesión cerrada correctamente.')
+        return super().post(request, *args, **kwargs)
 
 
 # ---------------------------------------------------------------------------

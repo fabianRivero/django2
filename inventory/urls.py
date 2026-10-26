@@ -8,6 +8,10 @@ urlpatterns = [
     # Dashboard
     path('', views.dashboard, name='dashboard'),
 
+    # Autenticación
+    path('login/', views.AppLoginView.as_view(), name='login'),
+    path('logout/', views.AppLogoutView.as_view(), name='logout'),
+
     # Products
     path('products/', views.product_list, name='product_list'),
     path('products/new/', views.product_create, name='product_create'),
