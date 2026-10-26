@@ -244,22 +244,35 @@ CSV_REQUIRED_HEADERS = ('sku', 'name', 'category', 'quantity', 'minimum_stock')
 #tipado del resultado de la importación csv
 @dataclass
 class CsvImportReport:
-    """Resumen por corrida que se devuelve a la UI."""
     created: int = 0
     updated: int = 0
     skipped: int = 0
     errors: list = None
-    sku_changes: list = None
+    #: Lista de (row_number, sku) para las filas que actualizaron un
+    #: producto ya existente. Sirve para que el usuario vea qué se
+    #: sobrescribió en la importación.
+    updated_rows: list = None
 
     def __post_init__(self):
         if self.errors is None:
             self.errors = []
-        if self.sku_changes is None:
-            self.sku_changes = []
+        if self.updated_rows is None:
+            self.updated_rows = []
 
 
 @transaction.atomic
 def import_products_from_csv(file_obj) -> CsvImportReport:
+    """Importa productos en bulk desde un archivo CSV.
+
+    Reglas de SKU:
+        - Si la columna sku viene vacia se genera un SKU
+          correlativo según la categoría y se crea el producto.
+        - Si la columna sku viene llena y no existe se crea el
+          producto con ese sku.
+        - Si la columna sku viene llena y ya existe se actualiza
+          ese producto se actualiza con la info del csv,excepto el stock.
+
+    """
     report = CsvImportReport()
     #se decodifica el archivo CSV
     decoded = file_obj.read().decode('utf-8-sig')
@@ -285,12 +298,7 @@ def import_products_from_csv(file_obj) -> CsvImportReport:
                 report.created += 1
             else:
                 report.updated += 1
-            # Si el SKU del CSV difiere del SKU final, registrarlo
-            # para que la UI pueda mostrarlo.
-            if result.requested_sku and result.requested_sku != result.actual_sku:
-                report.sku_changes.append((
-                    index, result.requested_sku, result.actual_sku,
-                ))
+                report.updated_rows.append((index, result.actual_sku))
         except Exception as exc:
             report.errors.append((index, str(exc)))
             report.skipped += 1
@@ -330,7 +338,7 @@ def _import_one_row(row: dict) -> _ImportRowResult:
     except (ValueError, ArithmeticError, TypeError) as exc:
         raise ValueError(f'Valor numérico inválido: {exc}')
 
-    final_sku = _resolve_sku_for_import(requested_sku, category)
+    final_sku = _resolve_sku_for_import(requested_sku, row, category)
 
     defaults = {
         'name': row.get('name') or final_sku,
@@ -339,12 +347,18 @@ def _import_one_row(row: dict) -> _ImportRowResult:
         'supplier': supplier_obj,
         'unit': row.get('unit', 'unidad') or 'unidad',
         'unit_price': unit_price,
-        'quantity': quantity,
         'minimum_stock': minimum_stock,
         'is_active': _parse_bool(row.get('is_active'), default=True),
     }
 
     with transaction.atomic():
+        existing = Product.objects.filter(sku=final_sku).first()
+        if existing is None:
+            # Producto nuevo: el stock del CSV es el stock inicial.
+            defaults['quantity'] = quantity
+        # Producto existente: NO se toca el stock. El stock real se
+        # cambia registrando movimientos, no importando un catálogo.
+
         _, created = Product.objects.update_or_create(sku=final_sku, defaults=defaults)
         return _ImportRowResult(
             created=created,
@@ -353,16 +367,17 @@ def _import_one_row(row: dict) -> _ImportRowResult:
         )
 
 
-def _resolve_sku_for_import(requested_sku: str, category: Category) -> str:
-    if not requested_sku:
-        # Caso 1: CSV sin SKU.
-        return generate_next_sku(category)
-
-    if not Product.objects.filter(sku=requested_sku).exists():
-        # Caso 2: CSV con SKU único. Usar tal cual.
+def _resolve_sku_for_import(requested_sku: str, row: dict, category: Category) -> str:
+    if requested_sku:
         return requested_sku
 
-    # Caso 3: CSV con SKU que ya existe. Generar uno nuevo.
+    # Sin SKU en el CSV se busca un producto con el mismo nombre en la misma categoría.
+    name = row.get('name') or ''
+    if name:
+        existing = Product.objects.filter(name=name, category=category).first()
+        if existing:
+            return existing.sku
+
     return generate_next_sku(category)
 
 #funcion para parsear booleanos que vienen como string 

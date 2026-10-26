@@ -2,9 +2,6 @@ from django import forms
 
 from .models import Category, Product, StockMovement, Supplier
 
-
-# Nombres de clases de Bootstrap. Reusados por cada form para no
-# repetirlos en cada widget.
 INPUT = {'class': 'form-control'}
 SELECT = {'class': 'form-select'}
 
