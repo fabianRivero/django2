@@ -88,7 +88,13 @@
         {% for m in recent_movements %}
         <tr>
           <td>{{ m.created_at|date:"Y-m-d H:i" }}</td>
-          <td><a href="{% url 'inventory:product_detail' m.product.pk %}">{{ m.product.name }}</a></td>
+            <td>
+              {% if m.product %}
+                <a href="{% url 'inventory:product_detail' m.product.pk %}">{{ m.display_name }}</a>
+              {% else %}
+                <span class="text-muted" title="Producto eliminado">{{ m.display_name }}</span>
+              {% endif %}
+            </td>
           <td>
             {% if m.movement_type == 'IN' %}<span class="badge bg-success">Entrada</span>
             {% elif m.movement_type == 'OUT' %}<span class="badge bg-danger">Salida</span>

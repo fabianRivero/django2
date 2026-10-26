@@ -110,51 +110,6 @@ class Product(models.Model):
         return reverse('inventory:product_detail', args=[self.pk])
 
     def save(self, *args, **kwargs):
-        """Override de ``save`` para:
-        1. Auto-asignar el SKU si está vacío.
-        2. Generar un movimiento IN de "stock inicial" cuando se crea
-           un producto con ``quantity > 0``.
-
-        Por qué en ``save`` y no en la vista:
-            Si lo hacemos en la vista, el importador CSV, el admin de
-            Django, las pruebas y cualquier futuro endpoint de API
-            tendrían que duplicar la lógica. Un solo punto en el modelo
-            garantiza consistencia en todos los call sites.
-
-        Comportamiento del SKU:
-            - Si ``self.sku`` ya tiene valor (creación con SKU explícito,
-              edición de un producto existente, importación CSV), se
-              respeta. Esto es importante: el usuario puede haber
-              querido forzar un SKU específico.
-            - Si ``self.sku`` está vacío y hay categoría, se llama a
-              ``services.generate_next_sku`` que devuelve un SKU
-              correlativo con prefijo de la categoría.
-            - Si no hay categoría tampoco, se respeta el SKU vacío
-              (Django va a tirar ``IntegrityError`` al guardar, lo cual
-              es preferible a inventar un SKU silenciosamente).
-
-        Comportamiento del movimiento inicial:
-            - Solo en creación (``_state.adding`` es True). En edición,
-              cambiar ``quantity`` no genera movimientos automáticos —
-              el usuario debe registrar IN/OUT explícitamente desde la
-              vista de movimientos.
-            - Solo si ``quantity > 0``. Si se crea con stock 0, no
-              queda un movimiento "IN de 0 unidades" en el log — sería
-              ruido inútil.
-            - El stock del producto YA está en su valor final cuando se
-              llama a ``save`` (lo setea el usuario al crear). Solo
-              creamos la fila de ``StockMovement`` para dejar
-              constancia en el log. NO usamos ``record_movement``
-              porque ese servicio modifica ``product.quantity`` y acá
-              no queremos tocarlo.
-
-        La función de generación de SKU corre dentro de su propia
-        transacción atómica con ``select_for_update``, así que es safe
-        bajo carga concurrente.
-        """
-        # Detectar si es una creación. ``_state.adding`` es True cuando
-        # el objeto no está todavía en la BD. Es la forma idiomática en
-        # Django de distinguir create vs update.
         is_creating = self._state.adding
 
         if not self.sku and self.category_id:
@@ -166,23 +121,25 @@ class Product(models.Model):
         if is_creating and self.quantity > 0:
             from .services import INITIAL_STOCK_REASON
             from .models import StockMovement
-            # Crear la fila de log directamente (sin pasar por
-            # ``record_movement``) porque el stock del producto ya
-            # está en su valor final. Solo queremos dejar constancia
-            # histórica del evento. La invariante "stock del producto
-            # = suma de movimientos" se mantiene porque la cantidad
-            # del movimiento es exactamente la cantidad que el
-            # producto tiene al momento de crearse.
             StockMovement.objects.create(
                 product=self,
                 movement_type='IN',
                 quantity=self.quantity,
                 reason=INITIAL_STOCK_REASON,
-                # created_by se deja NULL: este movimiento es del
-                # sistema, no necesariamente de un usuario logueado
-                # (puede venir de un importador CSV, un management
-                # command, o un script).
             )
+
+    def delete(self, *args, **kwargs):
+        from .services import PRODUCT_DELETED_REASON
+
+        if self.quantity > 0:
+            StockMovement.objects.create(
+                product=self,
+                movement_type='OUT',
+                quantity=self.quantity,
+                reason=PRODUCT_DELETED_REASON,
+            )
+
+        return super().delete(*args, **kwargs)
 
     @property
     def is_low_stock(self) -> bool:
@@ -212,9 +169,13 @@ class StockMovement(models.Model):
 
     product = models.ForeignKey(
         Product,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         related_name='movimientos',
+        null=True,
+        blank=True,
     )
+    product_sku = models.CharField(max_length=32, blank=True)
+    product_name = models.CharField(max_length=180, blank=True)
     movement_type = models.CharField(
         max_length=3,
         choices=MOVEMENT_TYPE_CHOICES,
@@ -257,7 +218,30 @@ class StockMovement(models.Model):
 
     def __str__(self) -> str:
         sign = '+' if self.movement_type == 'IN' else '-' if self.movement_type == 'OUT' else '~'
-        return f'{sign}{self.quantity} {self.product.sku} @ {self.created_at:%Y-%m-%d %H:%M}'
+        return f'{sign}{self.quantity} {self.display_sku} @ {self.created_at:%Y-%m-%d %H:%M}'
+
+    def save(self, *args, **kwargs):
+        if self.product_id and not self.product_sku:
+            self.product_sku = self.product.sku
+        if self.product_id and not self.product_name:
+            self.product_name = self.product.name
+        super().save(*args, **kwargs)
+
+    @property
+    def display_sku(self) -> str:
+        if self.product_id and self.product:
+            return self.product.sku
+        return self.product_sku or '—'
+
+    @property
+    def display_name(self) -> str:
+        if self.product_id and self.product:
+            return self.product.name
+        return self.product_name or '—'
+
+    @property
+    def is_orphan(self) -> bool:
+        return self.product_id is None
 
     @property
     def signed_quantity(self) -> int:

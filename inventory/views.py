@@ -163,9 +163,22 @@ def product_detail(request, pk: int):
 @login_required
 @require_POST
 def product_delete(request, pk: int):
+    #Si tenía stock, ``Product.delete()`` registra automáticamente una salida con esa cantidad 
+    
+
     product = get_object_or_404(Product, pk=pk)
+    # Guardamos el stock antes de borrar para poder mencionarlo en el mensaje de confirmación.
+    stock = product.quantity
+    name = product.name
     product.delete()
-    messages.success(request, 'Producto eliminado.')
+    if stock > 0:
+        messages.success(
+            request,
+            f'Producto "{name}" eliminado. Se registró una salida de '
+            f'{stock} unidades.',
+        )
+    else:
+        messages.success(request, f'Producto "{name}" eliminado.')
     return redirect('inventory:product_list')
 
 
@@ -211,7 +224,6 @@ def movement_create(request, pk: int):
                 messages.success(request, 'Movimiento de stock registrado.')
             return redirect('inventory:product_detail', pk=product.pk)
     else:
-        # Pre-seleccionar IN/OUT según el botón de acción que clickeó el usuario.
         form = StockMovementForm(initial={'movement_type': request.GET.get('type', 'IN')})
     return render(request, 'inventory/movement_form.html', {
         'form': form,

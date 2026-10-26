@@ -39,7 +39,11 @@
         {% for m in movements %}
           <li class="list-group-item d-flex justify-content-between align-content-between">
             <span>
-              <a href="{% url 'inventory:product_detail' m.product.pk %}">{{ m.product.name }}</a>
+              {% if m.product %}
+                <a href="{% url 'inventory:product_detail' m.product.pk %}">{{ m.display_name }}</a>
+              {% else %}
+                <span class="text-muted" title="Producto eliminado">{{ m.display_name }}</span>
+              {% endif %}
               <small class="text-muted">— {{ m.created_at|date:"Y-m-d" }}</small>
             </span>
             <span>

@@ -43,9 +43,6 @@ def products_for_list(
 
 def low_stock_products():
     #Productos en o por debajo de su umbral mínimo de stock.
-
-    # Los agotados van primero (así las alertas más urgentes siempre aparecen en el top-10 del panel).
-
     return (
         Product.objects.filter(is_active=True, quantity__lte=F('minimum_stock'))
         .annotate(
@@ -69,7 +66,7 @@ def movement_chart_data(days: int = 7):
         StockMovement.objects
         .filter(created_at__date__gte=start, movement_type__in=('IN', 'OUT'))
         .annotate(day=TruncDate('created_at'))
-        # Agrupar por (día, tipo) y sumar la cantidad — una fila por (día, tipo).
+        # Agrupar por (día, tipo) y sumar la cantidad una fila por (día, tipo).
         .values('day', 'movement_type')
         .annotate(total=Sum('quantity'))
         .order_by('day')
@@ -93,13 +90,6 @@ def movement_chart_data(days: int = 7):
 # Generación de SKU
 # ---------------------------------------------------------------------------
 
-#: Mapeo de nombre de categoría → prefijo de SKU. Si la categoría no
-#: está acá, se usa el primer fallback (``'GEN'``) — un usuario puede
-#: agregar nuevas entradas acá sin tocar nada más.
-#:
-#: Las claves están en MAYÚSCULAS a propósito: el lookup normaliza a
-#: uppercase antes de consultar el dict, así ``"Electronics"`` y
-#: ``"electronics"`` caen en el mismo prefijo.
 CATEGORY_PREFIXES = {
     'ELECTRONICS': 'EL',
     'ELECTRÓNICOS': 'EL',
@@ -108,63 +98,24 @@ CATEGORY_PREFIXES = {
     'MUEBLES': 'FU',
 }
 
-#: Prefijo por defecto cuando la categoría no está mapeada. ``GEN`` por
-#: "general" — significa que nadie se tomó el trabajo de mapear esta
-#: categoría. Editar CATEGORY_PREFIXES para evitar caer acá.
 DEFAULT_SKU_PREFIX = 'GEN'
 
-#: Formato del correlativo: 4 dígitos con ceros a la izquierda.
-#: 9999 productos por categoría alcanza para catálogos chicos; si
-#: pasás ese número el SKU se vuelve ``EL-10000`` y el sistema sigue
-#: funcionando (Django no valida el formato.
 SKU_NUMBER_FORMAT = '{prefix}-{number:04d}'
 
-#: Motivo que se usa cuando ``Product.save()`` genera un movimiento
-#: inicial de stock al crear un producto con ``quantity > 0``.
-#: Lo dejamos como constante para que sea fácil cambiarlo (o
-#: internacionalizarlo) en un solo lugar.
 INITIAL_STOCK_REASON = 'Stock inicial'
+
+PRODUCT_DELETED_REASON = 'Producto eliminado'
 
 
 @transaction.atomic
 def generate_next_sku(category: Category) -> str:
-    """Genera el siguiente SKU disponible para una categoría.
-
-    Estrategia: prefijo de la categoría + correlativo de 4 dígitos con
-    ceros a la izquierda (ej. ``EL-0043``).
-
-    Thread-safety:
-        La función corre dentro de ``@transaction.atomic`` y usa
-        ``select_for_update()`` sobre las filas que matchean el prefijo.
-        En Postgres esto toma un row-level lock hasta el commit; en
-        SQLite es un no-op pero las escrituras ya están serializadas
-        por el motor. Resultado: dos requests concurrentes nunca
-        generan el mismo SKU.
-
-    Si la categoría no tiene un prefijo mapeado en ``CATEGORY_PREFIXES``
-    se usa ``DEFAULT_SKU_PREFIX`` y se loguea un warning. La idea es
-    no bloquear la creación de un producto porque alguien olvidó
-    mapear una categoría nueva.
-
-    Args:
-        category: la instancia de ``Category`` para la cual generar SKU.
-
-    Returns:
-        El SKU generado, en formato ``"<PREFIX>-<NNNN>"``.
-
-    Raises:
-        ``ValueError``: si la categoría es ``None``.
-    """
     if category is None:
         raise ValueError('Se requiere una categoría para generar el SKU.')
 
-    # 1. Determinar el prefijo.
     normalized = category.name.strip().upper()
     prefix = CATEGORY_PREFIXES.get(normalized, DEFAULT_SKU_PREFIX)
 
     if prefix == DEFAULT_SKU_PREFIX:
-        # La categoría no está mapeada. Logueamos para que sea visible
-        # en el log del servidor — preferible a fallar la creación.
         import logging
         logger = logging.getLogger(__name__)
         logger.warning(
@@ -172,11 +123,6 @@ def generate_next_sku(category: Category) -> str:
             'Editar CATEGORY_PREFIXES en services.py para mapearla.',
             category.name, DEFAULT_SKU_PREFIX,
         )
-
-    # 2. Encontrar el correlativo actual dentro de la transacción.
-    #    ``select_for_update`` toma un lock sobre las filas
-    #    coincidentes. ``prefix-%`` matchea cualquier SKU que arranque
-    #    con ``<prefix>-``.
     pattern = f'{prefix}-%'
     existing = (
         Product.objects
@@ -185,29 +131,15 @@ def generate_next_sku(category: Category) -> str:
         .order_by('-sku')
         .values_list('sku', flat=True)
     )
-    # Materializar la lista ANTES de hacer cualquier otra cosa: el
-    # ``select_for_update`` solo tiene efecto dentro de la transacción
-    # y queremos asegurar que vimos el estado más reciente.
     existing = list(existing)
-
-    # 3. Calcular el siguiente número.
     next_number = 1
     if existing:
-        # Tomamos el primero (mayor SKU) y parseamos la parte numérica.
-        # Como ordenamos por ``-sku`` lexicográfico, "EL-9999" > "EL-1000"
-        # lexicográficamente — pero solo si tienen la misma cantidad de
-        # dígitos. Por eso parseamos el número, no usamos la string.
         try:
             latest_number = int(existing[0].split('-', 1)[1])
             next_number = latest_number + 1
         except (IndexError, ValueError):
-            # El SKU no respetó el formato — empezamos de nuevo desde 1.
-            # (No debería pasar si todos los SKUs vienen de acá, pero
-            # los datos importados manualmente pueden romperlo.)
             next_number = 1
 
-    # 4. Verificar que no exista (defensa adicional, en caso de que
-    #    alguien haya metido un SKU manualmente que coincida).
     candidate = SKU_NUMBER_FORMAT.format(prefix=prefix, number=next_number)
     while Product.objects.filter(sku=candidate).exists():
         next_number += 1
@@ -217,15 +149,6 @@ def generate_next_sku(category: Category) -> str:
 
 
 def preview_next_sku(category: Category) -> str:
-    """Devuelve el siguiente SKU que ``generate_next_sku`` produciría,
-    sin asignarlo. Útil para mostrar un placeholder en el form.
-
-    Esta función NO toma locks ni abre transacciones — solo calcula
-    lo que *probablemente* será el próximo SKU. Si entre el momento
-    de mostrarlo y el de guardar el SKU otro producto se inserta, el
-    SKU final será distinto al mostrado. Eso está bien: la vista lo
-    verá como un campo pre-rellenado y el usuario puede editarlo.
-    """
     if category is None:
         return ''
     normalized = category.name.strip().upper()
@@ -326,9 +249,6 @@ class CsvImportReport:
     updated: int = 0
     skipped: int = 0
     errors: list = None
-    #: Lista de ``(row_number, requested_sku, actual_sku)`` para filas
-    #: donde el SKU del CSV ya existía y se le asignó uno nuevo. Sirve
-    #: para mostrarle al usuario qué pasó con cada fila.
     sku_changes: list = None
 
     def __post_init__(self):
@@ -340,28 +260,6 @@ class CsvImportReport:
 
 @transaction.atomic
 def import_products_from_csv(file_obj) -> CsvImportReport:
-    """Crea o actualiza productos en bulk desde un objeto CSV-like.
-
-    Encabezado esperado (case-insensitive): sku, name, category, quantity,
-    minimum_stock, más opcionales: supplier, description, unit, unit_price,
-    is_active.
-
-    Reglas de SKU durante la importación:
-        - Si la columna ``sku`` viene VACÍA en el CSV → se genera un
-          SKU correlativo según la categoría (mismo flujo que
-          ``ProductForm``).
-        - Si la columna ``sku`` viene LLENA y NO existe en la BD → se
-          usa el SKU del CSV.
-        - Si la columna ``sku`` viene LLENA y YA EXISTE en la BD → se
-          ignora el SKU del CSV y se genera un nuevo correlativo. El
-          reporte incluye ``sku_changes`` con el original y el final
-          para que el usuario pueda revisar.
-
-    Cada fila corre dentro de su propio bloque atómico para que una
-    fila malformada no aborte toda la importación — las filas buenas
-    commitean, las malas se reportan.
-    """
-    #se crea un objeto CsvImportReport para guardar el resultado de la importación
     report = CsvImportReport()
     #se decodifica el archivo CSV
     decoded = file_obj.read().decode('utf-8-sig')
@@ -393,15 +291,9 @@ def import_products_from_csv(file_obj) -> CsvImportReport:
                 report.sku_changes.append((
                     index, result.requested_sku, result.actual_sku,
                 ))
-        except Exception as exc:  # noqa: BLE001 — surface the message to the UI
-            # Atrapamos todo a propósito: una sola fila mala no debe
-            # frenar la importación. El error se reporta por fila en
-            # el resultado para que el usuario pueda arreglar el archivo
-            # y reintentar.
+        except Exception as exc:
             report.errors.append((index, str(exc)))
-            #si hay error incrementamos el contador de errores y saltamos a la siguiente fila
             report.skipped += 1
-    #se borra el cache de alertas para que se actualice
     cache.delete(ALERT_COUNT_CACHE_KEY)
 
     return report
@@ -409,44 +301,18 @@ def import_products_from_csv(file_obj) -> CsvImportReport:
 
 @dataclass
 class _ImportRowResult:
-    """Resultado de importar una sola fila del CSV.
-
-    Por qué una dataclass y no una tupla:
-        Las tuplas con más de 2 elementos son difíciles de leer en el
-        call site (``r[2]`` no dice nada). Una dataclass con nombres
-        explícitos hace el flujo del bucle mucho más claro.
-    """
     created: bool
-    requested_sku: str  # SKU que vino en el CSV ('' si no venía)
-    actual_sku: str     # SKU final que tiene el producto en la BD
+    requested_sku: str
+    actual_sku: str
 
 
 def _import_one_row(row: dict) -> _ImportRowResult:
-    """Crea o actualiza un solo producto — envuelto en su propio savepoint.
-
-    Por qué cada fila tiene su propio savepoint:
-        ``update_or_create`` hace dos escrituras (un SELECT, después
-        INSERT o UPDATE). Una carrera por unique-constraint o un error
-        de BD a mitad de la escritura dejaría la transacción en estado
-        roto y abortaría el resto del archivo. El ``with
-        transaction.atomic()`` interior acota la falla a esta única fila.
-
-    Manejo del SKU en cada fila:
-        1. Si el CSV no trae SKU → se genera uno nuevo.
-        2. Si el CSV trae un SKU que NO existe → se usa tal cual.
-        3. Si el CSV trae un SKU que SÍ existe → se genera uno nuevo
-           (no se pisa el existente, para no perder datos).
-    """
     requested_sku = row.get('sku', '').strip()
 
     category_name = row.get('category')
     if not category_name:
         raise ValueError('category es obligatoria')
 
-    # Auto-crear la categoría/proveedor al vuelo. Es práctico para
-    # importaciones chicas pero un poco riesgoso en importaciones
-    # grandes — si la columna category tiene un typo terminás con
-    # una categoría nueva cada vez.
     category, _ = Category.objects.get_or_create(name=category_name)
 
     supplier_obj = None
@@ -464,8 +330,6 @@ def _import_one_row(row: dict) -> _ImportRowResult:
     except (ValueError, ArithmeticError, TypeError) as exc:
         raise ValueError(f'Valor numérico inválido: {exc}')
 
-    # Resolver el SKU final ANTES de update_or_create para no entrar
-    # en la rama de "update" cuando en realidad queríamos "create".
     final_sku = _resolve_sku_for_import(requested_sku, category)
 
     defaults = {
@@ -480,8 +344,6 @@ def _import_one_row(row: dict) -> _ImportRowResult:
         'is_active': _parse_bool(row.get('is_active'), default=True),
     }
 
-    # Cada fila en su propio savepoint — una fila mala no hace
-    # rollback del resto.
     with transaction.atomic():
         _, created = Product.objects.update_or_create(sku=final_sku, defaults=defaults)
         return _ImportRowResult(
@@ -492,19 +354,6 @@ def _import_one_row(row: dict) -> _ImportRowResult:
 
 
 def _resolve_sku_for_import(requested_sku: str, category: Category) -> str:
-    """Decide qué SKU usar para una fila del CSV.
-
-    Reglas:
-        1. ``requested_sku`` vacío → generar correlativo.
-        2. ``requested_sku`` lleno y NO existe en la BD → usar tal cual.
-        3. ``requested_sku`` lleno y SÍ existe → generar correlativo.
-
-    Por qué este helper existe separado de ``generate_next_sku``:
-        ``generate_next_sku`` siempre genera. Este necesita el
-        branching de "usar el del CSV o generar", que es específico
-        del importador. Si en el futuro querés que otras partes
-        tengan la misma lógica, la extraés.
-    """
     if not requested_sku:
         # Caso 1: CSV sin SKU.
         return generate_next_sku(category)
