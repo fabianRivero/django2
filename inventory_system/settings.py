@@ -11,7 +11,8 @@ SECRET_KEY = os.environ.get(
     'django-insecure-change-me-in-production-9k3j4h5g6f7d8s9a',
 )
 
-DEBUG = False
+DEBUG = os.environ.get('DJANGO_DEBUG', 'True').strip().lower() in ('1', 'true', 'yes', 'on')
+
 ALLOWED_HOSTS = ["*"]
 
 INSTALLED_APPS = [

@@ -1,14 +1,3 @@
-"""
-Carga la base de datos con un dataset chico pero realista.
-
-Uso:
-    python manage.py seed_demo
-
-Es *idempotente* — correrlo dos veces no crea duplicados.
-``get_or_create`` y ``update_or_create`` hacen que el comando sea
-seguro de re-correr después de que el esquema evolucione (p.ej. cuando
-se agrega un campo nuevo con default).
-"""
 from decimal import Decimal
 
 from django.core.management.base import BaseCommand
