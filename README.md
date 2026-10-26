@@ -22,7 +22,7 @@ inventario en gráficos.
 8. [Importar un archivo CSV](#importar-un-archivo-csv)
 9. [Panel y gráficos](#panel-y-gráficos)
 10. [Referencia técnica](#referencia-técnica)
-
+11. [Credenciales en Render](#credenciales-en-render)
 ---
 
 ## Instalación
@@ -652,4 +652,11 @@ python manage.py seed_demo    # opcional
 | `python manage.py createsuperuser` | Crea un usuario administrador |
 | `python manage.py shell` | Consola de Python con Django cargado |
 | `python verify.py` | Ejecuta la suite de verificación end-to-end |
+---
 
+## Credenciales en Render
+
+Las credenciales del programa desplegado en Render son:
+| Usuario | Contraseña |
+|---|---|
+| `admin` | admin123 |
